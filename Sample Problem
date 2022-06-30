@@ -1,0 +1,16 @@
+jumlah_tes = input()
+for i in range(int(jumlah_tes)):
+        baris_pertama = input()
+        split_baris_pertama = baris_pertama.split(" ")
+        jumlah_tas = split_baris_pertama[0]
+        jumlah_anak = split_baris_pertama[1]
+        
+        baris_kedua = input()
+        arr_jumlah_permen_setiap_tas = baris_kedua.split(" ")
+        
+        jumlah_permen = 0
+        for j in arr_jumlah_permen_setiap_tas:
+            jumlah_permen = jumlah_permen + int(j)
+        sisa_permen = jumlah_permen % int(jumlah_anak)
+        print("Case #" + str(i+1) + ": "+ str(sisa_permen))
+        
