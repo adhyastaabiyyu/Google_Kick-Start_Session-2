@@ -1,0 +1,196 @@
+use std::collections::VecDeque;
+use std::usize;
+
+#[derive(Debug)]
+struct Diamond {
+    left: (i32, i32),
+    right: (i32, i32),
+}
+
+impl Diamond {
+    fn new(i: usize, j: usize, d: usize) -> Self {
+        let d = d as i32;
+        let i = i as i32;
+        let j = j as i32;
+        Diamond {
+            left: (j-d+1-i, i+j-d+1),
+            right: (j+d-1-i, i+j+d-1)
+        }
+    }
+
+    fn intersect(&self, other: &Diamond) -> Option<Diamond> {
+        let d = Diamond {
+            left: (self.left.0.max(other.left.0), self.left.1.max(other.left.1)),
+            right: (self.right.0.min(other.right.0), self.right.1.min(other.right.1)),
+        };
+        if d.is_degenerate() {
+            return None
+        }
+        Some(d)
+    }
+
+    fn shrink(&mut self) -> bool {
+        self.left.0 += 1;
+        self.left.1 += 1;
+        self.right.0 -= 1;
+        self.right.1 -= 1;
+        !self.is_degenerate()
+    }
+
+    fn is_degenerate(&self) -> bool {
+        self.left.0 > self.right.0 || self.left.1 > self.right.1
+    }
+}
+
+fn children(r: usize, c: usize, i: usize, j: usize) -> Vec<(usize, usize)> {
+    let mut v = vec![];
+    if i > 0 {
+        v.push((i-1, j));
+    }
+    if j > 0 {
+        v.push((i, j-1));
+    }
+    if i + 1 < r {
+        v.push((i+1, j));
+    }
+    if j + 1 < c {
+        v.push((i, j+1));
+    }
+    v
+}
+
+fn bfs(grid: &mut Vec<Vec<Option<usize>>>, r: usize, c: usize) {
+    let mut q = VecDeque::new();
+    for i in 0..r {
+        for j in 0..c {
+            if grid[i][j] == Some(0) {
+                q.push_back(((i, j), 0));
+            }
+        }
+    }
+    while let Some(((i, j), d)) = q.pop_front() {
+        for (ni, nj) in children(r, c, i, j) {
+            if grid[ni][nj].is_none() {
+                grid[ni][nj] = Some(d + 1);
+                q.push_back(((ni, nj), d+1));
+            }
+        }
+    }
+}
+
+fn solve(mut grid: Vec<Vec<Option<usize>>>, r: usize, c: usize) -> usize {
+    bfs(&mut grid, r, c);
+    let max_d = *grid
+        .iter()
+        .flatten()
+        .flatten()
+        .max().unwrap();
+    let mut buckets = vec![vec![]; max_d + 1];
+    for i in 0..r {
+        for j in 0..c {
+            let d = grid[i][j].unwrap();
+            buckets[d].push((i, j));
+        }
+    }
+    let (i, j) = buckets[max_d].pop().unwrap();
+    let mut cur_diamond = Diamond::new(i, j, max_d);
+    for d in (1..=max_d).rev() {
+        for &(i, j) in &buckets[d] {
+            if let Some(intersected_diamond) = Diamond::new(i, j, d)
+                .intersect(&cur_diamond) {
+                cur_diamond = intersected_diamond;
+            } else {
+                return d; // no intersection
+            }
+        }
+        if cur_diamond.left == cur_diamond.right {
+            let (a, b) = cur_diamond.left;
+            // j - i = a => j = a + i
+            // i + j = b => i + (a+i) = b => 2*i = b - a => (b - a) % 2 == 0
+            return if (b-a) % 2 == 0 {
+                d-1
+            } else {
+                d
+            }
+        }
+        if !cur_diamond.shrink() {
+            return d - 1;
+        }
+    }
+    0
+}
+
+fn main() {
+    let (r, w) = (std::io::stdin(), std::io::stdout());
+    let mut sc = IO::new(r.lock(), w.lock());
+    let t: usize = sc.read();
+    for case_num in 1..=t {
+        let r: usize = sc.read();
+        let c: usize = sc.read();
+        let grid = sc.grid(r, &|c| {
+            if c == '1' {
+                return Some(0);
+            }
+            None
+        });
+        let ans = solve(grid, r, c);
+        sc.write(
+            format!("Case #{}: {}", case_num, ans)
+        );
+        sc.write("\n");
+    }
+}
+
+pub struct IO<R, W: std::io::Write>(R, std::io::BufWriter<W>);
+
+impl<R: std::io::Read, W: std::io::Write> IO<R, W> {
+    pub fn new(r: R, w: W) -> IO<R, W> {
+        IO(r, std::io::BufWriter::new(w))
+    }
+    pub fn write<S: ToString>(&mut self, s: S) {
+        use std::io::Write;
+        self.1.write_all(s.to_string().as_bytes()).unwrap();
+    }
+    pub fn read<T: std::str::FromStr>(&mut self) -> T {
+        use std::io::Read;
+        let buf = self
+            .0
+            .by_ref()
+            .bytes()
+            .map(|b| b.unwrap())
+            .skip_while(|&b| b == b' ' || b == b'\n' || b == b'\r' || b == b'\t')
+            .take_while(|&b| b != b' ' && b != b'\n' && b != b'\r' && b != b'\t')
+            .collect::<Vec<_>>();
+        unsafe { std::str::from_utf8_unchecked(&buf) }
+            .parse()
+            .ok()
+            .expect("Parse error.")
+    }
+    pub fn usize0(&mut self) -> usize {
+        self.read::<usize>() - 1
+    }
+    pub fn vec<T: std::str::FromStr>(&mut self, n: usize) -> Vec<T> {
+        (0..n).map(|_| self.read()).collect()
+    }
+    pub fn chars(&mut self) -> Vec<char> {
+        self.read::<String>().chars().collect()
+    }
+
+    pub fn binary_vec(&mut self) -> Vec<u8> {
+        self.read::<String>()
+            .bytes()
+            .map(|b| b - b'0')
+            .collect()
+    }
+
+    pub fn grid<T, F>(&mut self, r: usize, f: &F) -> Vec<Vec<T>>
+        where F: Fn(char) -> T {
+        let mut g = Vec::with_capacity(r);
+        for _ in 0..r {
+            g.push(
+                self.chars().into_iter().map(f).collect()
+            )
+        }
+        g
+    }
+}
